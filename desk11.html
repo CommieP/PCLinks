@@ -1,0 +1,234 @@
+<head>
+
+    <title>Nishesh PC</title>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+    <link type="text/css" rel="stylesheet" href="css/main.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.js"
+        integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+    <canvas id="c"></canvas>
+
+    <div id="loadingScreen">
+        <div id="loadingPercent">Loading... 0%</div>
+        <div id="loadingBar">
+            <div id="loadingProgress"></div>
+        </div>
+        <div id="loadingFiles">0 of 0 files Loaded</div>
+    </div>
+
+</body>
+
+<script type="module">
+
+    const loadingScreen = $("#loadingScreen");
+    const loadingProgress = $("#loadingProgress");
+    const loadingPercent = $("#loadingPercent");
+    const loadingFiles = $("#loadingFiles");
+
+    //Module imports
+    import * as THREE from './build/three.module.min.js';
+    import { PointerLockControls } from './jsm/PointerLockControls.js';
+    import { GLTFLoader } from './jsm/GLTFLoader.js';
+    import {DRACOLoader} from './jsm/DRACOLoader.js';
+
+    // Movement Controls Initialization
+    let moveForward = false;
+    let moveBackward = false;
+    let moveLeft = false;
+    let moveRight = false;
+
+    let prevTime = performance.now();
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+
+    // Canvas Initialization
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth * 2, window.innerHeight * 2, false);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMpaping = THREE.ACESFilmicToneMapping
+
+    // Camera Initialization
+    const fov = 60;
+    const aspect = (window.innerWidth / window.innerHeight);
+    const near = 0.1;
+    const far = 1000;
+
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.x = 0;
+    camera.position.y = 1.6;
+    camera.position.z = 0;
+    
+    camera.rotation.y = Math.PI/2+1.7;
+
+    // Scene Initialization
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const light1 = new THREE.AmbientLight(0xffffff, 2);
+    scene.add(light1);
+
+    const controls = new PointerLockControls(camera, canvas);
+    scene.add(controls.getObject());
+
+    // Raycaster Initialization
+    const raycasterOrigin = new THREE.Vector3(0, 0, 0);
+    const raycasterDirection = new THREE.Vector3(0, 0, -1);
+    const raycaster = new THREE.Raycaster(raycasterOrigin, raycasterDirection, 1, 15);
+
+    //environment setup
+
+    const manager = new THREE.LoadingManager();
+    manager.onStart = function (url, itemsLoaded, itemsTotal) {
+        loadingProgress.css("width", "0%");
+        loadingPercent.text("Loading... 0%");
+        loadingFiles.text(String(itemsLoaded) + " of " + String(itemsTotal) + " files loaded");
+    };
+
+    manager.onLoad = function () {
+        if (loadingScreen.css("display") != "none") {
+            loadingScreen.css("display", "none");
+        }
+        console.log('Loading complete!');
+    };
+
+    manager.onProgress = function (url, itemsLoaded, itemsTotal) {
+        let percent = String(Math.floor((itemsLoaded / itemsTotal) * 100)) + "%";
+        loadingProgress.css("width", percent);
+        loadingPercent.text("Loading... " + percent);
+        loadingFiles.text(String(itemsLoaded) + " of " + String(itemsTotal) + " files loaded");
+    };
+
+    manager.onError = function (url) {
+
+        console.log('There was an error loading ' + url);
+
+    };
+
+    const textureLoader = new THREE.TextureLoader(manager);
+
+    // const skyTexture = textureLoader.load("./models/daysky.jpg",
+    // () => {
+    //     const rt = new THREE.WebGLCubeRenderTarget(skyTexture.image.height);
+    //     rt.fromEquirectangularTexture(renderer, skyTexture);
+    //     scene.background = rt.texture;
+    // });
+
+    const gltfLoader = new GLTFLoader(manager);
+
+    const loader = new GLTFLoader(manager);
+
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('./libs/draco/');
+    loader.setDRACOLoader(dracoLoader);5
+
+    loader.load('./models/scene11.gltf', (gltf) => {
+        const root = gltf.scene;
+        scene.add(root);
+        console.log(root);
+        root.position.set(0, 0, 0);
+        let scale = 8
+        root.scale.set(scale, scale, scale);
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const time = performance.now();
+
+        let delta = (time - prevTime) / 1000;
+
+        if (delta > 0.02) {
+            delta = 0.02;
+        }
+
+        velocity.x -= velocity.x * 50 * delta;
+        velocity.z -= velocity.z * 50 * delta;
+
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize();
+
+        if (moveForward || moveBackward) velocity.z -= direction.z * 150 * delta;
+        if (moveLeft || moveRight) velocity.x -= direction.x * 150 * delta;
+
+        controls.moveRight(- velocity.x * delta);
+        controls.moveForward(- velocity.z * delta);
+
+        prevTime = time;
+
+        renderer.render(scene, camera);
+
+    }
+
+    animate();
+
+    // Control Event Listeners
+    const onKeyDown = function (event) {
+
+        switch (event.code) {
+
+            case 'ArrowUp':
+            case 'KeyW':
+                moveForward = true;
+                break;
+
+            case 'ArrowLeft':
+            case 'KeyA':
+                moveLeft = true;
+                break;
+
+            case 'ArrowDown':
+            case 'KeyS':
+                moveBackward = true;
+                break;
+
+            case 'ArrowRight':
+            case 'KeyD':
+                moveRight = true;
+                break;
+            case 'Space':
+                if (controls.isLocked) {
+                    controls.unlock();
+                } else {
+                    controls.lock();
+                }
+                break;
+        }
+    };
+
+    const onKeyUp = function (event) {
+
+        switch (event.code) {
+            case 'ArrowUp':
+            case 'KeyW':
+                moveForward = false;
+                break;
+
+            case 'ArrowLeft':
+            case 'KeyA':
+                moveLeft = false;
+                break;
+
+            case 'ArrowDown':
+            case 'KeyS':
+                moveBackward = false;
+                break;
+
+            case 'ArrowRight':
+            case 'KeyD':
+                moveRight = false;
+                break;
+        }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+</script>
